@@ -216,6 +216,8 @@ python -c "import cv2; import numpy; import sounddevice; from anime_face_detecto
 MotionPNGTuber/
 ├── mouth_track_gui.py              # メインGUI
 ├── mouth_erase_tuner_gui.py        # 口消しチューナーGUI（おまけツール）
+├── mouth_sprite_extractor_gui.py   # 口スプライト抽出GUI（おまけツール）
+├── mouth_sprite_extractor.py       # 口スプライト抽出コアモジュール
 ├── loop_lipsync_runtime_patched_emotion_auto.py  # リアルタイム実行（感情対応）
 ├── face_track_anime_detector.py    # 顔トラッキング
 ├── calibrate_mouth_track.py        # キャリブレーション
@@ -363,6 +365,35 @@ python mouth_erase_tuner_gui.py
 ```
 
 画像の口部分を削除できる単体ツールです。MotionPNGTuber本体とは独立して使用できます。
+
+---
+
+## 🎨 おまけツール: 口スプライト抽出GUI
+
+```bash
+python mouth_sprite_extractor_gui.py
+```
+
+動画から口スプライト（5種類のPNG）を自動抽出するツールです。口スプライトを自分で描く必要がなくなります。
+
+### 使い方
+
+1. **動画を選択**: 元動画（loop.mp4など）を選ぶ
+2. **解析**: 10枚の候補フレームが表示される（バリエーション別）
+3. **割り当て**: 各候補の下のテキストボックスに1-5を入力
+   - 1=open, 2=closed, 3=half, 4=e, 5=u
+4. **調整**: 切り取り範囲とフェザー幅を設定
+5. **プレビュー更新**: 設定を確認
+6. **出力**: 動画と同じフォルダに `mouth/` が作成される
+
+### 候補フレームの選び方
+
+10枚の候補は以下からバリエーション豊かに選ばれます：
+- 開いた口（高さ最大）: 2枚
+- 閉じた口（高さ最小）: 2枚
+- 半開き（高さ中央）: 2枚
+- 横長の口（e候補）: 2枚
+- すぼめた口（u候補）: 2枚
 
 ---
 
