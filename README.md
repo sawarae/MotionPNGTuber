@@ -152,6 +152,59 @@ uv pip install mmdet==2.28.0 mmpose==0.29.0
 
 </details>
 
+
+
+### ubuntu (実験的)
+
+<details>
+<summary><b>クリックして展開（ubuntu 24.04 RTX50xx）</b></summary>
+
+#### 構築
+
+```sh
+cp pyproject.toml pyproject.win.toml
+cp pyproject.linux.toml pyproject.toml
+
+sudo apt-get install -y ninja-build
+uv venv .venv && uv sync
+uv pip install wheel
+
+mkdir -p deps && cd deps
+git clone https://github.com/jin-s13/xtcocoapi.git
+cd xtcocoapi && ../../.venv/bin/python -m pip install -e . && cd ../..
+
+# nvcc --versionでcudaのバージョンを確認して適合するtorchをインストールする
+# https://pytorch.org/get-started/previous-versions/
+uv pip install torch==2.9.1+cu128 torchvision --index-url https://download.pytorch.org/whl/cu128
+
+uv pip install openmim mmengine
+# uv cache clean mmcv --force
+
+# For other GPU architectures, adjust TORCH_CUDA_ARCH_LIST:
+# - Blackwell (RTX 50XX): "12.0"
+# - Hopper (H100): "9.0"
+# - Ada Lovelace (RTX 40xx): "8.9"
+# - Ampere (RTX 30xx, A100): "8.0,8.6"
+# - Turing (RTX 20xx): "7.5"
+# - Volta (V100): "7.0"
+MMCV_WITH_OPS=1 FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="12.0" uv pip install mmcv==2.1.0 --no-cache-dir --no-build-isolation
+uv pip install --no-build-isolation git+https://github.com/sawarae/anime-face-detector@feature/rtx50xx
+uv pip install --no-cache-dir --no-build-isolation mmdet==3.2.0 mmpose==1.3.2
+```
+
+#### 6. 起動
+
+```sh
+.venv/bin/python mouth_track_gui.py
+```
+
+#### 注意事項
+
+- `deps/` ディレクトリは削除しないこと
+- キャリブレーションの拡大縮小は `+`/`-` キーで行う（ホイール不可）
+
+</details>
+
 ---
 
 ## 🎮 使い方

@@ -1,0 +1,36 @@
+[project]
+name = "motionpngtuber"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = "==3.10.*"
+dependencies = [
+    "numpy>=1.24.0,<2.0.0",
+    "opencv-python>=4.8.0",
+    "pillow>=10.0.0",
+    "pip>=24.0",
+    "scipy>=1.10.0",
+    "setuptools>=60.0.0,<70.0.0",
+    "sounddevice>=0.4.6",
+]
+
+[project.optional-dependencies]
+anime-face-detector = [
+    "torch==2.9.1",
+    "torchvision",
+    "mmengine>=0.7.0",
+    "mmcv>=2.1.0",  # check README for install
+    "mmdet>=3.2.0",
+    "mmpose>=1.3.2",
+]
+
+[tool.uv.extra-build-dependencies]
+chumpy = ["wheel", "pip", "setuptools"]
+mmcv = ["wheel"]
+
+[tool.uv]
+override-dependencies = [
+    # headless版を無効化してGUI版のopencv-pythonを使用
+    "opencv-python-headless>=4.5.4.58 ; sys_platform == 'never'",
+]
+index-strategy = "unsafe-best-match"
