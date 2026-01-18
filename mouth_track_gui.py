@@ -337,6 +337,7 @@ class App(tk.Tk):
         self.geometry("840x560")
 
         self.log_q: "queue.Queue[str]" = queue.Queue()
+        self.error_q: "queue.Queue[tuple[str, str]]" = queue.Queue()  # (title, msg)
         self.worker_thread: threading.Thread | None = None
         self.stop_flag = threading.Event()
         self.active_proc: subprocess.Popen | None = None
@@ -395,6 +396,7 @@ class App(tk.Tk):
         self._refresh_characters(init=True)
 
         self.after(100, self._poll_logs)
+        self.after(100, self._check_error_queue)
 
     # ----- UI -----
     def _build_ui(self) -> None:
@@ -802,10 +804,20 @@ class App(tk.Tk):
         self.after(0, _apply)
 
     def _show_error(self, title: str, msg: str) -> None:
-        self.after(0, lambda: messagebox.showerror(title, msg))
+        """メインスレッドからもworkerスレッドからも安全に呼び出せる"""
+        self.error_q.put((title, msg))
 
-    def _show_warn(self, title: str, msg: str) -> None:
-        self.after(0, lambda: messagebox.showwarning(title, msg))
+    def _check_error_queue(self) -> None:
+        """メインスレッドのイベントループから定期的に呼ばれる"""
+        try:
+            while True:
+                title, msg = self.error_q.get_nowait()
+                print(f"error: {title} {msg}")
+                messagebox.showerror(title, msg)
+        except queue.Empty:
+            pass
+        # 100ms後に再度チェック
+        self.after(100, self._check_error_queue)
 
     # ----- file pickers -----
     def on_pick_video(self) -> None:

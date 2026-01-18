@@ -22,7 +22,6 @@ import os
 import queue
 import subprocess
 import sys
-import threading
 import traceback
 from typing import Dict, List, Optional, Tuple
 
@@ -481,6 +480,7 @@ class MouthSpriteExtractorApp(tk.Tk if not _HAS_TK_DND else TkinterDnD.Tk):
     
     def log(self, message: str):
         """ログにメッセージを追加（スレッドセーフ）"""
+        print(message)
         self.log_queue.put(message)
     
     def _poll_logs(self):
@@ -567,19 +567,18 @@ class MouthSpriteExtractorApp(tk.Tk if not _HAS_TK_DND else TkinterDnD.Tk):
         if not self.video_path:
             messagebox.showwarning("警告", "動画ファイルを選択してください")
             return
-        
+
         if self.is_analyzing:
             return
-        
+
         self.is_analyzing = True
         self.analyze_btn.configure(state=tk.DISABLED)
         self.update_btn.configure(state=tk.DISABLED)
         self.output_btn.configure(state=tk.DISABLED)
         self._clear_candidates()
         self._clear_preview()
-        
-        thread = threading.Thread(target=self._analyze_worker, daemon=True)
-        thread.start()
+
+        self._analyze_worker()
     
     def _analyze_worker(self):
         """解析ワーカースレッド"""
