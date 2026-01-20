@@ -216,6 +216,7 @@ uv pip install --no-cache-dir --no-build-isolation mmdet==3.2.0 mmpose==1.3.2
 ブラウザベースのオールインワン統合インターフェース。すべての処理を1つのアプリで完結できます。
 
 ```bash
+sudo apt-get update && sudo apt-get install -y libportaudio2 portaudio19-dev
 uv run python gradio_app.py
 ```
 
