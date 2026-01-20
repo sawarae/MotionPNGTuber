@@ -1,3 +1,6 @@
+assets
+.mouth_track_last_session.json
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
