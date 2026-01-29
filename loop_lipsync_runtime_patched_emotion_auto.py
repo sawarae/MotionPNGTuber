@@ -764,7 +764,12 @@ def run(args) -> None:
             frp = vid_prev.get_frame(now).copy()
             draw_one(frp, vid_prev.frame_idx, track_prev, args.preview_scale)
             cv2.imshow(window_name, cv2.cvtColor(frp, cv2.COLOR_RGB2BGR))
-            if cv2.waitKey(1) & 0xFF == ord("q"):
+            key = cv2.waitKey(1) & 0xFF
+            # qキーまたはウィンドウが閉じられたら終了
+            if key == ord("q"):
+                break
+            # ウィンドウが閉じられたか確認
+            if cv2.getWindowProperty(window_name, cv2.WND_PROP_VISIBLE) < 1:
                 break
 
             # ---- virtual cam ----
