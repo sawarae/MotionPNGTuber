@@ -1040,31 +1040,7 @@ class App(tk.Tk):
 
     # ----- preview -----
     def _open_video_preview(self, video_path: str) -> None:
-        # Try OpenCV playback first (if available)
-        try:
-            import cv2  # type: ignore
-            cap = cv2.VideoCapture(video_path)
-            if cap.isOpened():
-                win = "preview (q/ESC=close, space=pause)"
-                paused = False
-                while True:
-                    if not paused:
-                        ok, frame = cap.read()
-                        if not ok:
-                            break
-                    cv2.imshow(win, frame)
-                    k = cv2.waitKey(15) & 0xFF
-                    if k in (ord("q"), 27):
-                        break
-                    if k == ord(" "):
-                        paused = not paused
-                cap.release()
-                cv2.destroyWindow(win)
-                return
-        except Exception:
-            pass
-
-        # Fallback to OS open
+        # Use OS default video player (OpenCV GUI can't run from worker thread)
         try:
             if sys.platform.startswith("win"):
                 os.startfile(video_path)  # type: ignore[attr-defined]
