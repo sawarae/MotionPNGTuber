@@ -310,7 +310,7 @@ class MouthSpriteExtractorApp(tk.Tk if not _HAS_TK_DND else TkinterDnD.Tk):
         face_row = ttk.Frame(model_frame)
         face_row.pack(fill=tk.X, pady=2)
         ttk.Label(face_row, text="face ckpt", width=10).pack(side=tk.LEFT)
-        self.face_checkpoint_var = tk.StringVar(value="models/FacesV1.pt")
+        self.face_checkpoint_var = tk.StringVar(value="")
         ttk.Entry(face_row, textvariable=self.face_checkpoint_var, width=30).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
         ttk.Button(face_row, text="Browse", command=self._browse_face_checkpoint).pack(side=tk.LEFT)
 

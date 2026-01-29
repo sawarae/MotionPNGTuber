@@ -4,7 +4,7 @@
 
 `anime-face-detector-nomm` ライブラリを使用して、カスタムの顔検出器とランドマーク検出器を指定できます。
 
-- **顔検出器**: YOLOv8形式の `.pt` ファイル（例: `models/FacesV1.pt`）
+- **顔検出器**: YOLOv8形式の `.pt` ファイル（例: `models/your_face_model.pt`）
 - **ランドマーク検出器**: HRNetV2形式の `.pth` ファイル（例: `models/xxxxx.pth`）
 
 ## 使用方法
@@ -16,7 +16,7 @@
 python face_track_anime_detector.py \
   --video "input.mp4" \
   --out "mouth_track.npz" \
-  --custom-detector-checkpoint "models/FacesV1.pt" \
+  --custom-detector-checkpoint "models/your_face_model.pt" \
   --landmark-model "models/xxxxx.pth" \
   --device cuda:0
 ```
@@ -49,7 +49,7 @@ python face_track_anime_detector.py \
 python face_track_anime_detector.py \
   --video "input.mp4" \
   --out "mouth_track.npz" \
-  --custom-detector-checkpoint models/FacesV1.pt \
+  --custom-detector-checkpoint models/your_face_model.pt \
   --landmark-model models/xxxxx.pth \
   --det-scale 0.75 \
   --pad 2.1 \
@@ -67,7 +67,7 @@ python face_track_anime_detector.py \
 from anime_face_detector import create_detector
 
 detector = create_detector(
-    face_detector_checkpoint_path='models/FacesV1.pt',      # カスタム顔検出器（省略可）
+    face_detector_checkpoint_path='models/your_face_model.pt',  # カスタム顔検出器（省略可）
     landmark_checkpoint_path='models/xxxxx.pth', # カスタムランドマーク（省略可）
     device='cuda:0',                                         # デバイス指定
     box_scale_factor=1.25,                                   # バウンディングボックス拡大係数

@@ -653,7 +653,7 @@ class MouthEraseTunerGUI(BaseTk):
         self.params = EraseParams()
         self._detector = None
         self._detector_device_actual = None
-        self._custom_checkpoint_path: str = "models/FacesV1.pt"
+        self._custom_checkpoint_path: str = ""
 
         # image list
         self.current_path: str = ""
@@ -736,7 +736,7 @@ class MouthEraseTunerGUI(BaseTk):
         # custom checkpoint (顔検出器)
         checkpoint_row = ttk.Frame(det_box); checkpoint_row.pack(fill="x", pady=2)
         ttk.Label(checkpoint_row, text="face ckpt", width=10).pack(side="left")
-        self.checkpoint_var = tk.StringVar(value="models/FacesV1.pt")
+        self.checkpoint_var = tk.StringVar(value="")
         ttk.Entry(checkpoint_row, textvariable=self.checkpoint_var, width=20).pack(side="left", padx=2)
         ttk.Button(checkpoint_row, text="Browse", command=self._browse_checkpoint).pack(side="left", padx=2)
 
