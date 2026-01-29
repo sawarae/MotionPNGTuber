@@ -1,32 +1,33 @@
-# カスタムモデル (FacesV1.pt) の使用方法
+# カスタムモデルの使用方法
 
 ## 概要
 
-`models/FacesV1.pt` をカスタム顔検出器として使用できるようにアップデートしました。
+`anime-face-detector-nomm` ライブラリを使用して、カスタムの顔検出器とランドマーク検出器を指定できます。
+
+- **顔検出器**: YOLOv8形式の `.pt` ファイル（例: `models/FacesV1.pt`）
+- **ランドマーク検出器**: HRNetV2形式の `.pth` ファイル（例: `models/xxxxx.pth`）
 
 ## 使用方法
 
 ### 1. コマンドラインからの使用 (face_track_anime_detector.py)
 
-#### FacesV1.pt を使用する場合:
+#### カスタムモデルを使用する場合:
 ```bash
 python face_track_anime_detector.py \
   --video "input.mp4" \
   --out "mouth_track.npz" \
-  --model yolov8 \
   --custom-detector-checkpoint "models/FacesV1.pt" \
-  --landmark-model hrnetv2 \
+  --landmark-model "models/xxxxx.pth" \
   --device cuda:0
 ```
 
 #### パラメータ説明:
-- `--model` (yolov3 | yolov8): ベースの検出モデル選択。FacesV1.ptを使う場合は `yolov8` を推奨
-- `--custom-detector-checkpoint`: カスタムモデルのパス (例: models/FacesV1.pt)
-- `--landmark-model` (hrnetv2 | mobilenetv2): ランドマーク検出モデル。`hrnetv2` がより正確です
-- `--device`: GPU/CPU指定 (cuda:0, cpu など)
+- `--custom-detector-checkpoint`: カスタム顔検出器のパス（.pt）。省略時は自動ダウンロード
+- `--landmark-model`: カスタムランドマーク検出器のパス（.pth）。省略時は自動ダウンロード
+- `--device`: GPU/CPU指定 (cuda:0, cpu, auto)
 - その他のパラメータはいつもどおり使用可能
 
-#### デフォルトモデル (yolov3) で実行する場合:
+#### デフォルトモデルで実行する場合:
 ```bash
 python face_track_anime_detector.py \
   --video "input.mp4" \
@@ -38,56 +39,57 @@ python face_track_anime_detector.py \
 1. アプリを起動
 2. 左パネル「検出設定」セクションで:
    - `device`: GPU/CPUを選択
-   - `checkpoint`: テキストフィールドにモデルパスを入力するか、"Browse" ボタンでファイル選択
-   - 例: `models/FacesV1.pt`
+   - `face ckpt`: 顔検出器のパスを入力するか、"Browse" ボタンでファイル選択
+   - `landmark`: ランドマーク検出器のパスを入力するか、"Browse" ボタンでファイル選択
 3. 「検出器再作成」ボタンをクリックして新しいモデルをロード
 
 ### 3. 推奨設定
 
-#### FacesV1.pt 使用時:
 ```bash
---model yolov8 \
---landmark-model hrnetv2 \
---custom-detector-checkpoint models/FacesV1.pt \
---det-scale 0.75 \
---pad 2.1 \
---min-conf 0.5 \
---smooth-cutoff 3.0
+python face_track_anime_detector.py \
+  --video "input.mp4" \
+  --out "mouth_track.npz" \
+  --custom-detector-checkpoint models/FacesV1.pt \
+  --landmark-model models/xxxxx.pth \
+  --det-scale 0.75 \
+  --pad 2.1 \
+  --min-conf 0.5 \
+  --smooth-cutoff 3.0
 ```
 
 ## 技術詳細
 
-### API の変更
+### API (anime-face-detector-nomm)
 
 コード内で `anime_face_detector.create_detector()` を以下のように呼び出します:
 
 ```python
+from anime_face_detector import create_detector
+
 detector = create_detector(
-    face_detector_name='yolov8',           # 'yolov3' or 'yolov8'
-    landmark_model_name='hrnetv2',         # ランドマーク検出モデル
-    device='cuda:0',                       # デバイス指定
-    custom_detector_checkpoint_path='models/FacesV1.pt',  # カスタムモデル
-    detector_framework='ultralytics'       # yolov8 使用時は 'ultralytics'
+    face_detector_checkpoint_path='models/FacesV1.pt',      # カスタム顔検出器（省略可）
+    landmark_checkpoint_path='models/xxxxx.pth', # カスタムランドマーク（省略可）
+    device='cuda:0',                                         # デバイス指定
+    box_scale_factor=1.25,                                   # バウンディングボックス拡大係数
 )
 ```
 
 ### 対応ファイル
 
-- **face_track_anime_detector.py**: 
-  - `--custom-detector-checkpoint` オプション追加
-  - `--landmark-model` オプション追加
-  - `create_detector()` 呼び出しをAPI形式に更新
-  
+- **face_track_anime_detector.py**:
+  - `--custom-detector-checkpoint`: 顔検出器パス
+  - `--landmark-model`: ランドマーク検出器パス
+
 - **mouth_erase_tuner_gui.py**:
-  - チェックポイント入力フィールド追加
-  - ファイルブラウザ機能追加
-  - 同じ `create_detector()` API 更新
+  - `face ckpt`: 顔検出器チェックポイント入力フィールド
+  - `landmark`: ランドマーク検出器チェックポイント入力フィールド
+  - 各フィールドにファイルブラウザ機能
 
 ## 注意事項
 
-- FacesV1.pt が正しいフォーマット (YOLOv8 .pt) であることを確認してください
+- 顔検出器は YOLOv8 形式の `.pt` ファイルを使用
+- ランドマーク検出器は HRNetV2 形式の `.pth` ファイルを使用
 - GPU メモリが不足する場合は `--det-scale` を小さくしてみてください
-- ランドマーク検出の精度は `--landmark-model hrnetv2` がおすすめです
 - カスタムモデルロード時は初回のみ時間がかかります
 
 ## トラブルシューティング

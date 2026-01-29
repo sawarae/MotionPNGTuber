@@ -718,7 +718,7 @@ def main() -> int:
     ap.add_argument("--out", required=True, help="出力 mouth_track.npz")
     ap.add_argument("--debug", default="", help="デバッグ動画出力 (optional)")
     ap.add_argument("--model", default="yolov8", choices=["yolov3", "yolov8"], help="検出モデル")
-    ap.add_argument("--custom-detector-checkpoint", default="models/FacesV1.pt", help="カスタム検出器チェックポイントパス")
+    ap.add_argument("--custom-detector-checkpoint", default=None, help="カスタム検出器チェックポイントパス (省略時は自動ダウンロード)")
     ap.add_argument("--landmark-model", default=None, help="ランドマークモデル (.pthパス or 空=デフォルト)")
     ap.add_argument("--device", default="cuda:0", help="cpu / cuda:N / auto (try cuda then cpu)")
     ap.add_argument("--quality", default="custom", choices=["max", "high", "normal", "fast", "custom"], help="解析品質プリセット (customでdet-scale/strideを使用)")

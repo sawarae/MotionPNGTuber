@@ -338,6 +338,7 @@ class App(tk.Tk):
 
         self.log_q: "queue.Queue[str]" = queue.Queue()
         self.error_q: "queue.Queue[tuple[str, str]]" = queue.Queue()  # (title, msg)
+        self.ui_q: "queue.Queue[callable]" = queue.Queue()  # UI更新用キュー
         self.worker_thread: threading.Thread | None = None
         self.stop_flag = threading.Event()
         self.active_proc: subprocess.Popen | None = None
@@ -362,6 +363,10 @@ class App(tk.Tk):
         self.emotion_hud_var = tk.BooleanVar(value=_safe_bool(sess.get("emotion_hud", True), default=True))
         self.coverage_var = tk.DoubleVar(value=_safe_float(sess.get("coverage", 0.60), 0.60, min_v=0.40, max_v=0.90))
         self.pad_var = tk.DoubleVar(value=_safe_float(sess.get("pad", 2.10), 2.10, min_v=1.00, max_v=3.00))
+
+        # Custom model checkpoints
+        self.face_checkpoint_var = tk.StringVar(value=str(sess.get("face_checkpoint", "")))
+        self.landmark_checkpoint_var = tk.StringVar(value=str(sess.get("landmark_checkpoint", "")))
 
         # erase shading preset (GUI only): plane=ON, none=OFF
         _esh = sess.get("erase_shading", sess.get("shading", "plane"))
@@ -442,6 +447,22 @@ class App(tk.Tk):
         self.pad_label.pack(side="left")
         self.pad_var.trace_add("write", lambda *_: self.pad_label.config(text=f"{self.pad_var.get():.2f}"))
         pad_scale.bind("<ButtonRelease-1>", lambda _evt=None: save_session({"pad": float(self.pad_var.get())}))
+
+        # Custom model settings (collapsible)
+        model_frame = ttk.LabelFrame(frm, text="検出モデル設定（上級）", padding=5)
+        model_frame.pack(fill="x", pady=(0, 8))
+
+        face_row = ttk.Frame(model_frame)
+        face_row.pack(fill="x", pady=2)
+        ttk.Label(face_row, text="face ckpt", width=10).pack(side="left")
+        ttk.Entry(face_row, textvariable=self.face_checkpoint_var, width=30).pack(side="left", fill="x", expand=True, padx=2)
+        ttk.Button(face_row, text="Browse", command=self._browse_face_checkpoint).pack(side="left")
+
+        landmark_row = ttk.Frame(model_frame)
+        landmark_row.pack(fill="x", pady=2)
+        ttk.Label(landmark_row, text="landmark", width=10).pack(side="left")
+        ttk.Entry(landmark_row, textvariable=self.landmark_checkpoint_var, width=30).pack(side="left", fill="x", expand=True, padx=2)
+        ttk.Button(landmark_row, text="Browse", command=self._browse_landmark_checkpoint).pack(side="left")
 
         # Coverage slider
         row3 = ttk.Frame(frm)
@@ -564,6 +585,7 @@ class App(tk.Tk):
         self.log_q.put(s)
 
     def _poll_logs(self) -> None:
+        # ログキュー処理
         try:
             while True:
                 s = self.log_q.get_nowait()
@@ -578,6 +600,13 @@ class App(tk.Tk):
                     self.txt.delete("1.0", f"{excess + 1}.0")
                 self.txt.see("end")
                 self.txt.configure(state="disabled")
+        except queue.Empty:
+            pass
+        # UI更新キュー処理
+        try:
+            while True:
+                func = self.ui_q.get_nowait()
+                func()
         except queue.Empty:
             pass
         self.after(100, self._poll_logs)
@@ -767,18 +796,22 @@ class App(tk.Tk):
             return False
 
     def _set_running(self, running: bool) -> None:
+        st = "disabled" if running else "normal"
         def _apply():
-            st = "disabled" if running else "normal"
-            self.btn_track_calib.configure(state=st)
-            self.btn_calib_only.configure(state=st)
-            self.btn_erase.configure(state=st)
-            self.btn_erase_range.configure(state=st)
-            self.btn_live.configure(state=st)
-            self.btn_stop.configure(state=("normal" if running else "disabled"))
-            if not running:
-                self._set_stop_mode("none")
-                self._progress_reset()
-        self.after(0, _apply)
+            try:
+                self.btn_track_calib.configure(state=st)
+                self.btn_calib_only.configure(state=st)
+                self.btn_erase.configure(state=st)
+                self.btn_erase_range.configure(state=st)
+                self.btn_live.configure(state=st)
+                self.btn_stop.configure(state=("normal" if running else "disabled"))
+                if not running:
+                    self._set_stop_mode("none")
+                    self._progress_reset()
+            except Exception as e:
+                print(f"[warn] _set_running error: {e}")
+        # スレッドセーフにキューイング
+        self.ui_q.put(_apply)
 
     def _progress_reset(self) -> None:
         def _apply():
@@ -894,6 +927,28 @@ class App(tk.Tk):
                 p.kill()
             except Exception:
                 pass
+
+    def _browse_face_checkpoint(self):
+        """顔検出器チェックポイント選択"""
+        path = filedialog.askopenfilename(
+            title="Select face checkpoint",
+            filetypes=[("PyTorch model", "*.pt"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.face_checkpoint_var.set(path)
+            save_session({"face_checkpoint": path})
+
+    def _browse_landmark_checkpoint(self):
+        """ランドマーク検出器チェックポイント選択"""
+        path = filedialog.askopenfilename(
+            title="Select landmark checkpoint",
+            filetypes=[("PyTorch model", "*.pth"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.landmark_checkpoint_var.set(path)
+            save_session({"landmark_checkpoint": path})
 
     # ----- subprocess runner -----
     def _run_cmd_stream(
@@ -1157,6 +1212,13 @@ class App(tk.Tk):
                     "--early-stop",
                     "--max-tries", "4",
                 ]
+                # Add custom model paths if specified
+                _face_ckpt = self.face_checkpoint_var.get().strip()
+                _landmark_ckpt = self.landmark_checkpoint_var.get().strip()
+                if _face_ckpt:
+                    cmd += ["--face-checkpoint", _face_ckpt]
+                if _landmark_ckpt:
+                    cmd += ["--landmark-checkpoint", _landmark_ckpt]
                 # Apply smoothing preset from GUI (Auto = pass nothing)
                 _cutoff = SMOOTHING_PRESETS.get(self.smoothing_menu_var.get())
                 if _cutoff is not None:

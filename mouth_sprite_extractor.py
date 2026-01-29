@@ -426,14 +426,24 @@ def compute_unified_size(
 class MouthSpriteExtractor:
     """口スプライト抽出器"""
     
-    def __init__(self, video_path: str, track_path: str = ""):
+    def __init__(
+        self,
+        video_path: str,
+        track_path: str = "",
+        face_checkpoint: str = "",
+        landmark_checkpoint: str = "",
+    ):
         """
         Args:
             video_path: 入力動画のパス
             track_path: mouth_track.npz のパス（空の場合は自動検索）
+            face_checkpoint: カスタム顔検出器のパス（.pt）。空の場合はデフォルト
+            landmark_checkpoint: カスタムランドマーク検出器のパス（.pth）。空の場合はデフォルト
         """
         self.video_path = video_path
         self.track_path = track_path
+        self.face_checkpoint = face_checkpoint
+        self.landmark_checkpoint = landmark_checkpoint
         
         # 動画情報
         self.vid_w = 0
@@ -500,10 +510,11 @@ class MouthSpriteExtractor:
             "--video", self.video_path,
             "--out", track_out,
             "--device", "auto",
-            "--model", "yolov8",
-            "--landmark-model", "hrnetv2",
-            "--custom-detector-checkpoint", "models/FacesV1.pt",
         ]
+        if self.face_checkpoint:
+            cmd.extend(["--custom-detector-checkpoint", self.face_checkpoint])
+        if self.landmark_checkpoint:
+            cmd.extend(["--landmark-model", self.landmark_checkpoint])
         
         if callback:
             callback("Running face detector...")
@@ -697,6 +708,8 @@ def main() -> int:
     ap.add_argument("--feather", type=int, default=15, help="Feather width in pixels")
     ap.add_argument("--position-threshold", type=float, default=50.0,
                     help="Position clustering threshold in pixels")
+    ap.add_argument("--face-checkpoint", default="", help="Custom face detector checkpoint (.pt)")
+    ap.add_argument("--landmark-checkpoint", default="", help="Custom landmark detector checkpoint (.pth)")
     args = ap.parse_args()
     
     if not os.path.isfile(args.video):
@@ -716,7 +729,12 @@ def main() -> int:
         print(f"[info] {msg}")
     
     try:
-        extractor = MouthSpriteExtractor(args.video, args.track)
+        extractor = MouthSpriteExtractor(
+            args.video,
+            args.track,
+            face_checkpoint=args.face_checkpoint,
+            landmark_checkpoint=args.landmark_checkpoint,
+        )
         log(f"Video: {extractor.vid_w}x{extractor.vid_h} @ {extractor.fps:.2f}fps")
         
         extractor.analyze(callback=log, position_threshold=args.position_threshold)
