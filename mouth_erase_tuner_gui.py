@@ -653,6 +653,7 @@ class MouthEraseTunerGUI(BaseTk):
         self.params = EraseParams()
         self._detector = None
         self._detector_device_actual = None
+        self._custom_checkpoint_path: str = "models/FacesV1.pt"
 
         # image list
         self.current_path: str = ""
@@ -731,6 +732,13 @@ class MouthEraseTunerGUI(BaseTk):
         ttk.Label(dev_row, text="device", width=10).pack(side="left")
         ttk.Combobox(dev_row, textvariable=self.device_var, values=["auto", "cpu", "cuda:0", "cuda:1"], state="readonly", width=12).pack(side="left")
         ttk.Button(dev_row, text="検出器再作成", command=self._reset_detector).pack(side="left", padx=6)
+
+        # custom checkpoint
+        checkpoint_row = ttk.Frame(det_box); checkpoint_row.pack(fill="x", pady=2)
+        ttk.Label(checkpoint_row, text="checkpoint", width=10).pack(side="left")
+        self.checkpoint_var = tk.StringVar(value="models/FacesV1.pt")
+        ttk.Entry(checkpoint_row, textvariable=self.checkpoint_var, width=20).pack(side="left", padx=2)
+        ttk.Button(checkpoint_row, text="Browse", command=self._browse_checkpoint).pack(side="left", padx=2)
 
         # det_scale
         self._slider(det_box, "det_scale", self.det_scale_var, 0.5, 1.5, 0.01)
@@ -1175,6 +1183,19 @@ class MouthEraseTunerGUI(BaseTk):
         self._log("[info] detector reset\n")
         self._schedule_update()
 
+    def _browse_checkpoint(self):
+        """Browse and select custom checkpoint file"""
+        import tkinter.filedialog as fd
+        path = fd.askopenfilename(
+            title="Select checkpoint file",
+            filetypes=[("PyTorch model", "*.pt"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.checkpoint_var.set(path)
+            self._custom_checkpoint_path = path
+            self._reset_detector()
+
     def _get_detector(self):
         if not _HAS_ANIME_DETECTOR:
             raise RuntimeError("anime-face-detector がインストールされていません。")
@@ -1182,14 +1203,27 @@ class MouthEraseTunerGUI(BaseTk):
             return self._detector
 
         dev = self.device_var.get().strip() or "auto"
-        self._log(f"[info] creating detector (model=yolov3, device={dev})...\n")
+        checkpoint_path = self.checkpoint_var.get().strip()
+        self._custom_checkpoint_path = checkpoint_path
+        
+        model_info = f"model=yolov8"
+        if checkpoint_path:
+            model_info += f", checkpoint={checkpoint_path}"
+        self._log(f"[info] creating detector ({model_info}, device={dev})...\n")
 
         # face_track_anime_detector.py と同じ fallback 方針
         device_try = ["cuda:0", "cpu"] if dev == "auto" else [dev] + (["cpu"] if dev.startswith("cuda") else [])
         last_err = None
         for d in device_try:
             try:
-                det = create_detector("yolov3", device=d)  # type: ignore
+                # 参照: anime_face_detector.create_detector() from reference code
+                det = create_detector(  # type: ignore
+                    face_detector_name='yolov8',
+                    landmark_model_name='hrnetv2',
+                    device=d,
+                    custom_detector_checkpoint_path=checkpoint_path if checkpoint_path else None,
+                    detector_framework='ultralytics'
+                )
                 self._detector = det
                 self._detector_device_actual = d
                 if d != dev:

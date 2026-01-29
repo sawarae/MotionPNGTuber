@@ -682,6 +682,9 @@ def main() -> int:
     base: Dict[str, Optional[str]] = {
         "--video": args.video,
         "--out": None,  # filled per run
+        "--model": "yolov8",
+        "--landmark-model": "hrnetv2",
+        "--custom-detector-checkpoint": "models/FacesV1.pt",
         "--device": args.device,
         "--quality": args.quality,
         "--det-scale": f"{args.det_scale}",

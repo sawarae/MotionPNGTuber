@@ -500,6 +500,9 @@ class MouthSpriteExtractor:
             "--video", self.video_path,
             "--out", track_out,
             "--device", "auto",
+            "--model", "yolov8",
+            "--landmark-model", "hrnetv2",
+            "--custom-detector-checkpoint", "models/FacesV1.pt",
         ]
         
         if callback:

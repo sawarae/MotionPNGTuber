@@ -188,7 +188,7 @@ uv pip install openmim mmengine
 # - Turing (RTX 20xx): "7.5"
 # - Volta (V100): "7.0"
 MMCV_WITH_OPS=1 FORCE_CUDA=1 TORCH_CUDA_ARCH_LIST="12.0" uv pip install mmcv==2.1.0 --no-cache-dir --no-build-isolation
-uv pip install --no-build-isolation git+https://github.com/sawarae/anime-face-detector@feature/rtx50xx
+uv pip install --no-build-isolation git+https://github.com/sawarae/anime-face-detector@fmain
 uv pip install --no-cache-dir --no-build-isolation mmdet==3.2.0 mmpose==1.3.2
 ```
 
