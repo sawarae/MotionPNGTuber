@@ -338,6 +338,7 @@ class App(tk.Tk):
 
         self.log_q: "queue.Queue[str]" = queue.Queue()
         self.error_q: "queue.Queue[tuple[str, str]]" = queue.Queue()  # (title, msg)
+        self.ui_q: "queue.Queue[callable]" = queue.Queue()  # UI更新用キュー
         self.worker_thread: threading.Thread | None = None
         self.stop_flag = threading.Event()
         self.active_proc: subprocess.Popen | None = None
@@ -360,8 +361,12 @@ class App(tk.Tk):
         self.emotion_preset_var = tk.StringVar(value=_ep)
 
         self.emotion_hud_var = tk.BooleanVar(value=_safe_bool(sess.get("emotion_hud", True), default=True))
-        self.coverage_var = tk.DoubleVar(value=_safe_float(sess.get("coverage", 0.60), 0.60, min_v=0.40, max_v=0.90))
+        self.coverage_var = tk.DoubleVar(value=_safe_float(sess.get("coverage", 0.60), 0.60, min_v=0.40, max_v=1.00))
         self.pad_var = tk.DoubleVar(value=_safe_float(sess.get("pad", 2.10), 2.10, min_v=1.00, max_v=3.00))
+
+        # Custom model checkpoints
+        self.face_checkpoint_var = tk.StringVar(value=str(sess.get("face_checkpoint", "")))
+        self.landmark_checkpoint_var = tk.StringVar(value=str(sess.get("landmark_checkpoint", "")))
 
         # erase shading preset (GUI only): plane=ON, none=OFF
         _esh = sess.get("erase_shading", sess.get("shading", "plane"))
@@ -443,11 +448,27 @@ class App(tk.Tk):
         self.pad_var.trace_add("write", lambda *_: self.pad_label.config(text=f"{self.pad_var.get():.2f}"))
         pad_scale.bind("<ButtonRelease-1>", lambda _evt=None: save_session({"pad": float(self.pad_var.get())}))
 
+        # Custom model settings (collapsible)
+        model_frame = ttk.LabelFrame(frm, text="検出モデル設定（上級）", padding=5)
+        model_frame.pack(fill="x", pady=(0, 8))
+
+        face_row = ttk.Frame(model_frame)
+        face_row.pack(fill="x", pady=2)
+        ttk.Label(face_row, text="face ckpt", width=10).pack(side="left")
+        ttk.Entry(face_row, textvariable=self.face_checkpoint_var, width=30).pack(side="left", fill="x", expand=True, padx=2)
+        ttk.Button(face_row, text="Browse", command=self._browse_face_checkpoint).pack(side="left")
+
+        landmark_row = ttk.Frame(model_frame)
+        landmark_row.pack(fill="x", pady=2)
+        ttk.Label(landmark_row, text="landmark", width=10).pack(side="left")
+        ttk.Entry(landmark_row, textvariable=self.landmark_checkpoint_var, width=30).pack(side="left", fill="x", expand=True, padx=2)
+        ttk.Button(landmark_row, text="Browse", command=self._browse_landmark_checkpoint).pack(side="left")
+
         # Coverage slider
         row3 = ttk.Frame(frm)
         row3.pack(fill="x", pady=(0, 8))
         ttk.Label(row3, text="口消し強さ").pack(side="left")
-        ttk.Scale(row3, from_=0.40, to=0.90, variable=self.coverage_var, orient="horizontal").pack(
+        ttk.Scale(row3, from_=0.40, to=1.00, variable=self.coverage_var, orient="horizontal").pack(
             side="left", fill="x", expand=True, padx=8
         )
         self.cov_label = ttk.Label(row3, text=f"{self.coverage_var.get():.2f}")
@@ -564,6 +585,7 @@ class App(tk.Tk):
         self.log_q.put(s)
 
     def _poll_logs(self) -> None:
+        # ログキュー処理
         try:
             while True:
                 s = self.log_q.get_nowait()
@@ -578,6 +600,13 @@ class App(tk.Tk):
                     self.txt.delete("1.0", f"{excess + 1}.0")
                 self.txt.see("end")
                 self.txt.configure(state="disabled")
+        except queue.Empty:
+            pass
+        # UI更新キュー処理
+        try:
+            while True:
+                func = self.ui_q.get_nowait()
+                func()
         except queue.Empty:
             pass
         self.after(100, self._poll_logs)
@@ -767,18 +796,22 @@ class App(tk.Tk):
             return False
 
     def _set_running(self, running: bool) -> None:
+        st = "disabled" if running else "normal"
         def _apply():
-            st = "disabled" if running else "normal"
-            self.btn_track_calib.configure(state=st)
-            self.btn_calib_only.configure(state=st)
-            self.btn_erase.configure(state=st)
-            self.btn_erase_range.configure(state=st)
-            self.btn_live.configure(state=st)
-            self.btn_stop.configure(state=("normal" if running else "disabled"))
-            if not running:
-                self._set_stop_mode("none")
-                self._progress_reset()
-        self.after(0, _apply)
+            try:
+                self.btn_track_calib.configure(state=st)
+                self.btn_calib_only.configure(state=st)
+                self.btn_erase.configure(state=st)
+                self.btn_erase_range.configure(state=st)
+                self.btn_live.configure(state=st)
+                self.btn_stop.configure(state=("normal" if running else "disabled"))
+                if not running:
+                    self._set_stop_mode("none")
+                    self._progress_reset()
+            except Exception as e:
+                print(f"[warn] _set_running error: {e}")
+        # スレッドセーフにキューイング
+        self.ui_q.put(_apply)
 
     def _progress_reset(self) -> None:
         def _apply():
@@ -895,6 +928,28 @@ class App(tk.Tk):
             except Exception:
                 pass
 
+    def _browse_face_checkpoint(self):
+        """顔検出器チェックポイント選択"""
+        path = filedialog.askopenfilename(
+            title="Select face checkpoint",
+            filetypes=[("PyTorch model", "*.pt"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.face_checkpoint_var.set(path)
+            save_session({"face_checkpoint": path})
+
+    def _browse_landmark_checkpoint(self):
+        """ランドマーク検出器チェックポイント選択"""
+        path = filedialog.askopenfilename(
+            title="Select landmark checkpoint",
+            filetypes=[("PyTorch model", "*.pth"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.landmark_checkpoint_var.set(path)
+            save_session({"landmark_checkpoint": path})
+
     # ----- subprocess runner -----
     def _run_cmd_stream(
         self,
@@ -985,31 +1040,7 @@ class App(tk.Tk):
 
     # ----- preview -----
     def _open_video_preview(self, video_path: str) -> None:
-        # Try OpenCV playback first (if available)
-        try:
-            import cv2  # type: ignore
-            cap = cv2.VideoCapture(video_path)
-            if cap.isOpened():
-                win = "preview (q/ESC=close, space=pause)"
-                paused = False
-                while True:
-                    if not paused:
-                        ok, frame = cap.read()
-                        if not ok:
-                            break
-                    cv2.imshow(win, frame)
-                    k = cv2.waitKey(15) & 0xFF
-                    if k in (ord("q"), 27):
-                        break
-                    if k == ord(" "):
-                        paused = not paused
-                cap.release()
-                cv2.destroyWindow(win)
-                return
-        except Exception:
-            pass
-
-        # Fallback to OS open
+        # Use OS default video player (OpenCV GUI can't run from worker thread)
         try:
             if sys.platform.startswith("win"):
                 os.startfile(video_path)  # type: ignore[attr-defined]
@@ -1157,6 +1188,13 @@ class App(tk.Tk):
                     "--early-stop",
                     "--max-tries", "4",
                 ]
+                # Add custom model paths if specified
+                _face_ckpt = self.face_checkpoint_var.get().strip()
+                _landmark_ckpt = self.landmark_checkpoint_var.get().strip()
+                if _face_ckpt:
+                    cmd += ["--face-checkpoint", _face_ckpt]
+                if _landmark_ckpt:
+                    cmd += ["--landmark-checkpoint", _landmark_ckpt]
                 # Apply smoothing preset from GUI (Auto = pass nothing)
                 _cutoff = SMOOTHING_PRESETS.get(self.smoothing_menu_var.get())
                 if _cutoff is not None:
@@ -1349,242 +1387,41 @@ class App(tk.Tk):
         """口消しのマスク範囲（inner/ring）を元フレーム上に重ねて確認するプレビュー。
         - 赤: 実際に消す中心マスク（feather込み）
         - 黄: ring（陰影推定に使う外周）
+
+        NOTE: OpenCVのGUI関数はメインスレッドで実行する必要があるため、
+        別プロセスとして起動する。
         """
-        def _worker():
-            try:
-                import cv2  # type: ignore
-                import numpy as np  # type: ignore
-            except Exception:
-                self._show_error("エラー", "OpenCV(cv2) と numpy が必要です。")
-                return
+        video = self.video_var.get().strip()
+        if not video:
+            self._show_error("エラー", "動画を選択してください。")
+            return
 
-            video = self.video_var.get().strip()
-            if not video:
-                self._show_error("エラー", "動画を選択してください。")
-                return
+        out_dir = os.path.dirname(os.path.abspath(video))
+        track_npz = os.path.join(out_dir, "mouth_track.npz")
+        if not os.path.isfile(track_npz):
+            self._show_error("エラー", "mouth_track.npz がありません。先に『① 解析→キャリブ』を実行してください。")
+            return
 
-            out_dir = os.path.dirname(os.path.abspath(video))
-            track_npz = os.path.join(out_dir, "mouth_track.npz")
-            if not os.path.isfile(track_npz):
-                self._show_error("エラー", "mouth_track.npz がありません。先に『① 解析→キャリブ』を実行してください。")
-                return
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        preview_script = os.path.join(base_dir, "preview_erase_range.py")
+        if not os.path.isfile(preview_script):
+            self._show_error("エラー", "preview_erase_range.py が見つかりません。")
+            return
 
-            cap = cv2.VideoCapture(video)
-            if not cap.isOpened():
-                self._show_error("エラー", f"動画を開けません: {video}")
-                return
+        cov = float(self.coverage_var.get())
 
-            try:
-                vid_w = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH) or 0)
-                vid_h = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT) or 0)
-                total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT) or 0)
-                fps = float(cap.get(cv2.CAP_PROP_FPS) or 30.0)
-                if vid_w <= 0 or vid_h <= 0:
-                    self._show_error("エラー", "動画サイズが取得できませんでした。")
-                    return
-
-                # ---- load track (mouth_track.npz) ----
-                npz = np.load(track_npz, allow_pickle=False)
-                if "quad" not in npz:
-                    self._show_error("エラー", "track npz に 'quad' がありません。")
-                    return
-                quads = np.asarray(npz["quad"], dtype=np.float32)
-                if quads.ndim != 3 or quads.shape[1:] != (4, 2):
-                    self._show_error("エラー", "quad の形が不正です（(N,4,2) が必要）。")
-                    return
-                N = int(quads.shape[0])
-                valid = np.asarray(npz["valid"], dtype=bool) if "valid" in npz else np.ones((N,), dtype=bool)
-
-                # scale to current video size (if track stored original w/h)
-                src_w = int(npz["w"]) if "w" in npz else vid_w
-                src_h = int(npz["h"]) if "h" in npz else vid_h
-                sx = float(vid_w) / float(max(1, src_w))
-                sy = float(vid_h) / float(max(1, src_h))
-                quads = quads.copy()
-                quads[..., 0] *= sx
-                quads[..., 1] *= sy
-
-                # hold-fill for invalid frames (same as erase_mouth_offline.py default)
-                filled = quads.copy()
-                idxs = np.where(valid)[0]
-                if len(idxs) > 0:
-                    last = int(idxs[0])
-                    for i in range(N):
-                        if valid[i]:
-                            last = i
-                        else:
-                            filled[i] = filled[last]
-                    first = int(idxs[0])
-                    for i in range(first):
-                        filled[i] = filled[first]
-                else:
-                    self._show_error("エラー", "track が全フレーム invalid のようです。")
-                    return
-
-                n_out = min(total_frames if total_frames > 0 else N, N)
-
-                # ---- decide normalized patch size (match erase_mouth_offline.py default) ----
-                def ensure_even_ge2(n: int) -> int:
-                    n = int(n)
-                    if n < 2:
-                        return 2
-                    return n if (n % 2 == 0) else (n - 1)
-
-                qsz = filled[:n_out]
-                ws = np.linalg.norm(qsz[:, 1, :] - qsz[:, 0, :], axis=1)
-                hs = np.linalg.norm(qsz[:, 3, :] - qsz[:, 0, :], axis=1)
-                ratio = float(np.median(ws / np.maximum(1e-6, hs)))
-                p95w = float(np.percentile(ws, 95))
-                oversample = 1.2
-                norm_w = ensure_even_ge2(max(96, int(round(p95w * oversample))))
-                ratio_c = max(0.25, min(4.0, ratio))
-                norm_h = ensure_even_ge2(max(64, int(round(norm_w / ratio_c))))
-
-                # ---- build masks in normalized space from current coverage ----
-                cov = float(self.coverage_var.get())
-                cov = float(np.clip(cov, 0.0, 1.0))
-
-                # same tuning as erase_mouth_offline.py (coverage mode)
-                mask_scale_x = 0.50 + 0.18 * cov
-                mask_scale_y = 0.44 + 0.14 * cov
-                ring_px = int(round(16 + 10 * cov))
-                dilate_px = int(round(8 + 8 * cov))
-                feather_px = int(round(18 + 10 * cov))
-                top_clip_frac = float(0.84 - 0.06 * cov)
-                center_y_off = int(round(norm_h * (0.05 + 0.01 * cov)))
-
-                def make_mouth_mask(w: int, h: int, rx: int, ry: int, *, center_y_offset_px: int = 0, top_clip_frac: float = 0.82):
-                    # Filled ellipse, shifted down; clip top to protect nose/philtrum
-                    mask = np.zeros((h, w), dtype=np.uint8)
-                    cx, cy = w // 2, h // 2 + int(center_y_offset_px)
-                    rx2 = int(max(1, min(int(rx), w // 2 - 1)))
-                    ry2 = int(max(1, min(int(ry), h // 2 - 1)))
-                    cv2.ellipse(mask, (cx, cy), (rx2, ry2), 0.0, 0.0, 360.0, 255, -1)
-                    clip_y = int(round(h * (1.0 - float(top_clip_frac))))
-                    clip_y = int(np.clip(clip_y, 0, h))
-                    if clip_y > 0:
-                        mask[:clip_y, :] = 0
-                    return mask
-
-                def feather_mask(mask_u8: np.ndarray, dilate_px: int, feather_px: int) -> np.ndarray:
-                    m = mask_u8.copy()
-                    if dilate_px > 0:
-                        k = 2 * int(dilate_px) + 1
-                        kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k, k))
-                        m = cv2.dilate(m, kernel, iterations=1)
-                    if feather_px > 0:
-                        k = 2 * int(feather_px) + 1
-                        m = cv2.GaussianBlur(m, (k, k), sigmaX=0)
-                    return (m.astype(np.float32) / 255.0).clip(0.0, 1.0)
-
-                rx = int((norm_w * mask_scale_x) * 0.5)
-                ry = int((norm_h * mask_scale_y) * 0.5)
-                inner_u8 = make_mouth_mask(norm_w, norm_h, rx=rx, ry=ry, center_y_offset_px=center_y_off, top_clip_frac=top_clip_frac)
-                outer_u8 = make_mouth_mask(norm_w, norm_h, rx=rx + ring_px, ry=ry + ring_px, center_y_offset_px=center_y_off, top_clip_frac=top_clip_frac)
-                ring_u8 = cv2.subtract(outer_u8, inner_u8)
-
-                inner_f = feather_mask(inner_u8, dilate_px=dilate_px, feather_px=feather_px)
-                ring_f = (ring_u8.astype(np.float32) / 255.0).clip(0.0, 1.0)
-
-                # ---- interactive preview ----
-                win = "erase range preview (q/ESC=close, space=play/pause, a/d=step, [ ]=±10)"
-                paused = True
-                idx = 0
-
-                src_pts = np.array(
-                    [[0, 0], [norm_w - 1, 0], [norm_w - 1, norm_h - 1], [0, norm_h - 1]],
-                    dtype=np.float32,
-                )
-
-                # colors (BGR)
-                red = np.zeros((vid_h, vid_w, 3), dtype=np.uint8)
-                red[:, :, 2] = 255
-                yellow = np.zeros((vid_h, vid_w, 3), dtype=np.uint8)
-                yellow[:, :, 1] = 255
-                yellow[:, :, 2] = 255
-
-                while True:
-                    if self.stop_flag.is_set():
-                        break
-                    cap.set(cv2.CAP_PROP_POS_FRAMES, float(idx))
-                    ok, frame = cap.read()
-                    if not ok or frame is None:
-                        break
-
-                    q = filled[idx].astype(np.float32).reshape(4, 2)
-
-                    # warp masks into full-frame space
-                    M = cv2.getPerspectiveTransform(src_pts, q)
-                    m_inner = cv2.warpPerspective(inner_f, M, (vid_w, vid_h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
-                    m_ring = cv2.warpPerspective(ring_f, M, (vid_w, vid_h), flags=cv2.INTER_NEAREST, borderMode=cv2.BORDER_CONSTANT, borderValue=0)
-
-                    out = frame.copy()
-
-                    # overlay: inner (red), ring (yellow)
-                    a_inner = 0.45
-                    a_ring = 0.25
-                    out = (out.astype(np.float32) * (1.0 - a_inner * m_inner[..., None]) + red.astype(np.float32) * (a_inner * m_inner[..., None])).astype(np.uint8)
-                    out = (out.astype(np.float32) * (1.0 - a_ring * m_ring[..., None]) + yellow.astype(np.float32) * (a_ring * m_ring[..., None])).astype(np.uint8)
-
-                    # quad outline
-                    pts = q.reshape(-1, 1, 2).astype(np.int32)
-                    cv2.polylines(out, [pts], True, (0, 255, 0), 1, cv2.LINE_AA)
-
-                    # info text
-                    info = f"frame {idx+1}/{n_out}  cov={cov:.2f}  (red=erase, yellow=ring)"
-                    cv2.putText(out, info, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 0), 3, cv2.LINE_AA)
-                    cv2.putText(out, info, (10, 24), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 255), 1, cv2.LINE_AA)
-                    if not bool(valid[idx]):
-                        cv2.putText(out, "INVALID (filled)", (10, 50), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2, cv2.LINE_AA)
-
-                    cv2.imshow(win, out)
-
-                    delay = max(1, int(round(1000.0 / max(1.0, fps)))) if not paused else 15
-                    k = cv2.waitKey(delay)
-                    k8 = k & 0xFF
-
-                    if k8 in (ord("q"), 27):
-                        break
-                    if k8 == ord(" "):
-                        paused = not paused
-                        continue
-                    if k8 == ord("a"):
-                        idx = max(0, idx - 1)
-                        paused = True
-                        continue
-                    if k8 == ord("d"):
-                        idx = min(n_out - 1, idx + 1)
-                        paused = True
-                        continue
-                    if k8 == ord("["):
-                        idx = max(0, idx - 10)
-                        paused = True
-                        continue
-                    if k8 == ord("]"):
-                        idx = min(n_out - 1, idx + 10)
-                        paused = True
-                        continue
-
-                    if not paused:
-                        idx += 1
-                        if idx >= n_out:
-                            break
-
-                cv2.destroyWindow(win)
-
-            finally:
-                try:
-                    cap.release()
-                except Exception:
-                    pass
-                try:
-                    import cv2  # type: ignore
-                    cv2.destroyAllWindows()
-                except Exception:
-                    pass
-
-        # プレビューは外部プロセスではないが、UIが固まらないようワーカで回す
-        self._start_worker(_worker)
+        # 別プロセスとして起動（GUIをブロックしない）
+        cmd = [
+            sys.executable, preview_script,
+            "--video", video,
+            "--track", track_npz,
+            "--coverage", f"{cov:.2f}",
+        ]
+        self.log("[cmd] " + " ".join(cmd))
+        try:
+            subprocess.Popen(cmd, cwd=base_dir)
+        except Exception as e:
+            self._show_error("エラー", f"プレビュー起動に失敗しました: {e}")
 
     def on_live_run(self) -> None:
         def _worker():

@@ -618,6 +618,8 @@ def main() -> int:
     ap.add_argument("--detector", default="face_track_anime_detector.py", help="path to detector script")
     # base detector args
     ap.add_argument("--device", default="cuda:0")
+    ap.add_argument("--face-checkpoint", default="", help="Custom face detector checkpoint (.pt)")
+    ap.add_argument("--landmark-checkpoint", default="", help="Custom landmark detector checkpoint (.pth)")
     ap.add_argument("--quality", default="custom")
     ap.add_argument("--det-scale", dest="det_scale", type=float, default=1.0)
     ap.add_argument("--stride", type=int, default=1)
@@ -699,6 +701,11 @@ def main() -> int:
         "--ref-sprite-w": f"{args.ref_sprite_w}",
         "--ref-sprite-h": f"{args.ref_sprite_h}",
     }
+    # Add custom model paths if specified
+    if args.face_checkpoint:
+        base["--custom-detector-checkpoint"] = args.face_checkpoint
+    if args.landmark_checkpoint:
+        base["--landmark-model"] = args.landmark_checkpoint
 
     tmpdir = tempfile.mkdtemp(prefix="auto_mouth_track_")
     best_score = -1e9

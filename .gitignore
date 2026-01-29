@@ -1,5 +1,6 @@
 assets
 .mouth_track_last_session.json
+models/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

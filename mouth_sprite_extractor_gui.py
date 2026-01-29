@@ -301,7 +301,27 @@ class MouthSpriteExtractorApp(tk.Tk if not _HAS_TK_DND else TkinterDnD.Tk):
         if _HAS_TK_DND:
             video_entry.drop_target_register(DND_FILES)
             video_entry.dnd_bind("<<Drop>>", self._on_drop_video)
-        
+
+        # --- Model settings ---
+        model_frame = ttk.LabelFrame(main_frame, text="検出モデル設定", padding=5)
+        model_frame.pack(fill=tk.X, pady=(0, 10))
+
+        # Face checkpoint
+        face_row = ttk.Frame(model_frame)
+        face_row.pack(fill=tk.X, pady=2)
+        ttk.Label(face_row, text="face ckpt", width=10).pack(side=tk.LEFT)
+        self.face_checkpoint_var = tk.StringVar(value="")
+        ttk.Entry(face_row, textvariable=self.face_checkpoint_var, width=30).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        ttk.Button(face_row, text="Browse", command=self._browse_face_checkpoint).pack(side=tk.LEFT)
+
+        # Landmark checkpoint
+        landmark_row = ttk.Frame(model_frame)
+        landmark_row.pack(fill=tk.X, pady=2)
+        ttk.Label(landmark_row, text="landmark", width=10).pack(side=tk.LEFT)
+        self.landmark_checkpoint_var = tk.StringVar(value="")
+        ttk.Entry(landmark_row, textvariable=self.landmark_checkpoint_var, width=30).pack(side=tk.LEFT, fill=tk.X, expand=True, padx=2)
+        ttk.Button(landmark_row, text="Browse", command=self._browse_landmark_checkpoint).pack(side=tk.LEFT)
+
         # --- Analyze button ---
         self.analyze_btn = ttk.Button(
             main_frame, text="解析", command=self._on_analyze
@@ -525,10 +545,30 @@ class MouthSpriteExtractorApp(tk.Tk if not _HAS_TK_DND else TkinterDnD.Tk):
         path = event.data
         if path.startswith("{") and path.endswith("}"):
             path = path[1:-1]
-        
+
         if os.path.isfile(path):
             self._set_video(path)
-    
+
+    def _browse_face_checkpoint(self):
+        """顔検出器チェックポイント選択"""
+        path = filedialog.askopenfilename(
+            title="Select face checkpoint",
+            filetypes=[("PyTorch model", "*.pt"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.face_checkpoint_var.set(path)
+
+    def _browse_landmark_checkpoint(self):
+        """ランドマーク検出器チェックポイント選択"""
+        path = filedialog.askopenfilename(
+            title="Select landmark checkpoint",
+            filetypes=[("PyTorch model", "*.pth"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.landmark_checkpoint_var.set(path)
+
     def _set_video(self, path: str):
         """動画パスを設定"""
         self.video_path = path
@@ -585,7 +625,11 @@ class MouthSpriteExtractorApp(tk.Tk if not _HAS_TK_DND else TkinterDnD.Tk):
         try:
             self.log("解析を開始...")
             
-            self.extractor = MouthSpriteExtractor(self.video_path)
+            self.extractor = MouthSpriteExtractor(
+                self.video_path,
+                face_checkpoint=self.face_checkpoint_var.get().strip(),
+                landmark_checkpoint=self.landmark_checkpoint_var.get().strip(),
+            )
             self.extractor.analyze(callback=self.log)
             
             # バリエーションのある候補を選択
