@@ -733,12 +733,19 @@ class MouthEraseTunerGUI(BaseTk):
         ttk.Combobox(dev_row, textvariable=self.device_var, values=["auto", "cpu", "cuda:0", "cuda:1"], state="readonly", width=12).pack(side="left")
         ttk.Button(dev_row, text="検出器再作成", command=self._reset_detector).pack(side="left", padx=6)
 
-        # custom checkpoint
+        # custom checkpoint (顔検出器)
         checkpoint_row = ttk.Frame(det_box); checkpoint_row.pack(fill="x", pady=2)
-        ttk.Label(checkpoint_row, text="checkpoint", width=10).pack(side="left")
+        ttk.Label(checkpoint_row, text="face ckpt", width=10).pack(side="left")
         self.checkpoint_var = tk.StringVar(value="models/FacesV1.pt")
         ttk.Entry(checkpoint_row, textvariable=self.checkpoint_var, width=20).pack(side="left", padx=2)
         ttk.Button(checkpoint_row, text="Browse", command=self._browse_checkpoint).pack(side="left", padx=2)
+
+        # landmark checkpoint (ランドマーク検出器)
+        landmark_row = ttk.Frame(det_box); landmark_row.pack(fill="x", pady=2)
+        ttk.Label(landmark_row, text="landmark", width=10).pack(side="left")
+        self.landmark_checkpoint_var = tk.StringVar(value="")
+        ttk.Entry(landmark_row, textvariable=self.landmark_checkpoint_var, width=20).pack(side="left", padx=2)
+        ttk.Button(landmark_row, text="Browse", command=self._browse_landmark_checkpoint).pack(side="left", padx=2)
 
         # det_scale
         self._slider(det_box, "det_scale", self.det_scale_var, 0.5, 1.5, 0.01)
@@ -1196,6 +1203,18 @@ class MouthEraseTunerGUI(BaseTk):
             self._custom_checkpoint_path = path
             self._reset_detector()
 
+    def _browse_landmark_checkpoint(self):
+        """ランドマーク検出器チェックポイント選択ダイアログ"""
+        import tkinter.filedialog as fd
+        path = fd.askopenfilename(
+            title="Select landmark checkpoint file",
+            filetypes=[("PyTorch model", "*.pth"), ("All files", "*.*")],
+            initialdir="models"
+        )
+        if path:
+            self.landmark_checkpoint_var.set(path)
+            self._reset_detector()
+
     def _get_detector(self):
         if not _HAS_ANIME_DETECTOR:
             raise RuntimeError("anime-face-detector がインストールされていません。")
@@ -1204,11 +1223,14 @@ class MouthEraseTunerGUI(BaseTk):
 
         dev = self.device_var.get().strip() or "auto"
         checkpoint_path = self.checkpoint_var.get().strip()
+        landmark_path = self.landmark_checkpoint_var.get().strip()
         self._custom_checkpoint_path = checkpoint_path
-        
+
         model_info = f"model=yolov8"
         if checkpoint_path:
-            model_info += f", checkpoint={checkpoint_path}"
+            model_info += f", face_ckpt={checkpoint_path}"
+        if landmark_path:
+            model_info += f", landmark_ckpt={landmark_path}"
         self._log(f"[info] creating detector ({model_info}, device={dev})...\n")
 
         # face_track_anime_detector.py と同じ fallback 方針
@@ -1216,13 +1238,13 @@ class MouthEraseTunerGUI(BaseTk):
         last_err = None
         for d in device_try:
             try:
-                # 参照: anime_face_detector.create_detector() from reference code
+                # 参照: anime_face_detector.create_detector() (anime-face-detector-nomm版)
+                # face_detector_checkpoint_path: カスタム顔検出器 (.pt)
+                # landmark_checkpoint_path: カスタムランドマーク検出器 (.pth)
                 det = create_detector(  # type: ignore
-                    face_detector_name='yolov8',
-                    landmark_model_name='hrnetv2',
+                    face_detector_checkpoint_path=checkpoint_path if checkpoint_path else None,
+                    landmark_checkpoint_path=landmark_path if landmark_path else None,
                     device=d,
-                    custom_detector_checkpoint_path=checkpoint_path if checkpoint_path else None,
-                    detector_framework='ultralytics'
                 )
                 self._detector = det
                 self._detector_device_actual = d

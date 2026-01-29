@@ -719,7 +719,7 @@ def main() -> int:
     ap.add_argument("--debug", default="", help="デバッグ動画出力 (optional)")
     ap.add_argument("--model", default="yolov8", choices=["yolov3", "yolov8"], help="検出モデル")
     ap.add_argument("--custom-detector-checkpoint", default="models/FacesV1.pt", help="カスタム検出器チェックポイントパス")
-    ap.add_argument("--landmark-model", default="hrnetv2", choices=["hrnetv2", "mobilenetv2"], help="ランドマーク検出モデル")
+    ap.add_argument("--landmark-model", default=None, help="ランドマークモデル (.pthパス or 空=デフォルト)")
     ap.add_argument("--device", default="cuda:0", help="cpu / cuda:N / auto (try cuda then cpu)")
     ap.add_argument("--quality", default="custom", choices=["max", "high", "normal", "fast", "custom"], help="解析品質プリセット (customでdet-scale/strideを使用)")
     ap.add_argument("--det-scale", type=float, default=1.0, help="解析時の入力縮小倍率 (1.0=元のまま)")
@@ -758,17 +758,15 @@ def main() -> int:
             device_try.append("cpu")
     for dev in device_try:
         try:
-            # 参照: anime_face_detector.create_detector()
-            # face_detector_name: 'yolov3' or 'yolov8'
-            # landmark_model_name: 'hrnetv2' or 'mobilenetv2' (use hrnetv2 for better accuracy)
-            # custom_detector_checkpoint_path: path to custom model (e.g., 'models/FacesV1.pt')
-            face_detector_name = 'yolov8' if args.model == 'yolov8' else 'yolov3'
+            # 参照: anime_face_detector.create_detector() (anime-face-detector-nomm版)
+            # face_detector_checkpoint_path: カスタム顔検出器 (.pt)
+            # landmark_checkpoint_path: カスタムランドマーク検出器 (.pth)
+            face_ckpt = args.custom_detector_checkpoint if args.custom_detector_checkpoint else None
+            landmark_ckpt = args.landmark_model if args.landmark_model else None
             detector = create_detector(
-                face_detector_name=face_detector_name,
-                landmark_model_name=args.landmark_model,
+                face_detector_checkpoint_path=face_ckpt,
+                landmark_checkpoint_path=landmark_ckpt,
                 device=dev,
-                custom_detector_checkpoint_path=args.custom_detector_checkpoint if args.custom_detector_checkpoint else None,
-                detector_framework='ultralytics' if args.model == 'yolov8' else 'mmdet'
             )
             if dev != args.device:
                 print(f"[info] detector fallback: using device={dev}")
