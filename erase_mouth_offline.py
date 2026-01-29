@@ -512,8 +512,8 @@ def main() -> int:
     if float(args.coverage) >= 0.0:
         cov = float(np.clip(float(args.coverage), 0.0, 1.0))
         # Tuned defaults for anime faces (black line art): keep the erase area tight, expand gently with coverage.
-        mask_scale_x = 0.50 + 0.18 * cov   # 0.50..0.68
-        mask_scale_y = 0.44 + 0.14 * cov   # 0.44..0.58 (vertical grows slower to avoid the nose)
+        mask_scale_x = 0.55 + 0.25 * cov   # 0.55..0.80
+        mask_scale_y = 0.48 + 0.20 * cov   # 0.48..0.68
         ring_px = int(round(16 + 10 * cov))  # 16..26
         dilate_px = int(round(8 + 8 * cov))  # 8..16
         feather_px = int(round(18 + 10 * cov))  # 18..28

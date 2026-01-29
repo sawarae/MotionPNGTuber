@@ -156,8 +156,8 @@ def inner_and_ring_masks(norm_w: int, norm_h: int, coverage: float,
     if cov >= 0.0:
         cov = float(np.clip(cov, 0.0, 1.0))
         # Match erase_mouth_offline.py exactly
-        msx = float(0.50 + 0.18 * cov)   # 0.50..0.68
-        msy = float(0.44 + 0.14 * cov)   # 0.44..0.58
+        msx = float(0.55 + 0.25 * cov)   # 0.55..0.80
+        msy = float(0.48 + 0.20 * cov)   # 0.48..0.68
         rpx = int(round(16 + 10 * cov))  # 16..26
         cyo = int(round(norm_h * (0.05 + 0.01 * cov)))
         tcf = float(0.84 - 0.06 * cov)   # 0.84..0.78

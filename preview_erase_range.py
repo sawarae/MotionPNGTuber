@@ -105,8 +105,8 @@ def main():
         norm_h = ensure_even_ge2(max(64, int(round(norm_w / ratio_c))))
 
         # ---- build masks in normalized space from current coverage ----
-        mask_scale_x = 0.50 + 0.18 * cov
-        mask_scale_y = 0.44 + 0.14 * cov
+        mask_scale_x = 0.55 + 0.25 * cov
+        mask_scale_y = 0.48 + 0.20 * cov
         ring_px = int(round(16 + 10 * cov))
         dilate_px = int(round(8 + 8 * cov))
         feather_px = int(round(18 + 10 * cov))

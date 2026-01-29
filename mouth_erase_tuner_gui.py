@@ -594,8 +594,8 @@ def coverage_to_params(norm_h: int, cov: float) -> Dict[str, Any]:
     cov: 0..1
     """
     cov = float(np.clip(cov, 0.0, 1.0))
-    mask_scale_x = 0.50 + 0.18 * cov   # 0.50..0.68
-    mask_scale_y = 0.44 + 0.14 * cov   # 0.44..0.58
+    mask_scale_x = 0.55 + 0.25 * cov   # 0.55..0.80
+    mask_scale_y = 0.48 + 0.20 * cov   # 0.48..0.68
     ring_px = int(round(16 + 10 * cov))  # 16..26
     dilate_px = int(round(8 + 8 * cov))  # 8..16
     feather_px = int(round(18 + 10 * cov))  # 18..28

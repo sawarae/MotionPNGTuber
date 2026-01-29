@@ -361,7 +361,7 @@ class App(tk.Tk):
         self.emotion_preset_var = tk.StringVar(value=_ep)
 
         self.emotion_hud_var = tk.BooleanVar(value=_safe_bool(sess.get("emotion_hud", True), default=True))
-        self.coverage_var = tk.DoubleVar(value=_safe_float(sess.get("coverage", 0.60), 0.60, min_v=0.40, max_v=0.90))
+        self.coverage_var = tk.DoubleVar(value=_safe_float(sess.get("coverage", 0.60), 0.60, min_v=0.40, max_v=1.00))
         self.pad_var = tk.DoubleVar(value=_safe_float(sess.get("pad", 2.10), 2.10, min_v=1.00, max_v=3.00))
 
         # Custom model checkpoints
@@ -468,7 +468,7 @@ class App(tk.Tk):
         row3 = ttk.Frame(frm)
         row3.pack(fill="x", pady=(0, 8))
         ttk.Label(row3, text="口消し強さ").pack(side="left")
-        ttk.Scale(row3, from_=0.40, to=0.90, variable=self.coverage_var, orient="horizontal").pack(
+        ttk.Scale(row3, from_=0.40, to=1.00, variable=self.coverage_var, orient="horizontal").pack(
             side="left", fill="x", expand=True, padx=8
         )
         self.cov_label = ttk.Label(row3, text=f"{self.coverage_var.get():.2f}")
