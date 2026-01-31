@@ -18,7 +18,8 @@ dependencies = [
     "setuptools>=60.0.0,<70.0.0",
     "sounddevice>=0.4.6",
     "torch==1.13.1+cu117",
-    "torchvision==0.14.1+cu117"
+    "torchvision==0.14.1+cu117",
+    "gradio>=4.0.0"
 ]
 
 [tool.uv]
